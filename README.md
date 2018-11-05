@@ -10,6 +10,8 @@ Two languages:
 Getting available real estate types on the website:
 ```python
 from real_estate_hungary import remove_spec_hun_chars, RequestWithHeaders, RealEstateHungarySettings, RealEstateHungaryPageListings
+```
+```python
 language='eng'
 eng_settings=RealEstateHungarySettings(lang=language)
 ```
