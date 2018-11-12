@@ -232,12 +232,11 @@ class RealEstateHungaryPageListings:
                 'property_ids': [div.a.get('data-apartment-id') for div in prop_coll.find_all(name='div', class_='Apartment--favorite')]
             }
         elif self.lang=='hun':
-            prop_coll=self.parsed_html.find(name="div", class_='resultspage__listings js-listings')
-            page={
-                'property_urls': ["{0}{1}".format(self._url, div.a.get("href").lstrip('/')) for div in prop_coll.find_all(name="div", class_="listing__card")],
-                'property_ids': [div.get('data-id') for div in prop_coll.find_all(name="div", class_="listing js-listing ")],
-                'cluster_ids': [div.get('data-cluster-id') for div in prop_coll.find_all(name="div", class_="listing js-listing ")]
-            }
+            prop_coll=self.parsed_html.find_all(name="div", class_='listing__card')
+            page_ids=[(div.a.parent.parent.get("data-id"),
+            div.a.parent.parent.get("data-cluster-id"), 
+            "{0}{1}".format(self._url, div.a.get("href").lstrip('/'))) for div in prop_coll]
+            page={'property_ids':[t[0] for t in page_ids], 'cluster_ids':[t[1] for t in page_ids], 'property_urls':[t[2] for t in page_ids]}   
         return page
     
     def get_property_ids(self):
@@ -272,24 +271,29 @@ class RealEstateHungaryPageListings:
         record=pd.DataFrame(attrs, index=[0])
         return record.dropna(axis=1)
     
+    
+    def _check_unique_ids(self, in_df, in_df_col_name='property_url'):
+        ids=pd.DataFrame(self.get_page_listings())
+        if not in_df.empty:
+            uniq_urls=~ids.property_urls.isin(in_df[in_df_col_name])
+            return ids[uniq_urls]
+        else:
+            return ids
+    
     def listings_to_df(self, num_listings=None, checking_unique_in_df=pd.DataFrame()):
         urls=self.get_property_urls()
-        property_ids=self.get_property_ids()
-        cluster_ids=self.get_cluster_ids()
         max_listing=len(urls)
         if num_listings and num_listings>max_listing:
             raise ValueError('Given number of listings exceeded the maximum number of listings on the page, please specify equal or less than {0}.'.format(max_listing))
-        if not checking_unique_in_df.empty:
-            urls=[u for u in urls if u not in checking_unique_in_df['property_url'].tolist()]
-            property_ids=[p for p in property_ids if p not in checking_unique_in_df['property_id'].tolist()]
-            cluster_ids=[c for c in cluster_ids if c not in checking_unique_in_df['cluster_id'].tolist() and c is not None]
         counter=0
         records=pd.DataFrame()
-        for prop_id, cluster_id, url in zip(property_ids, cluster_ids, urls):
+        unique_ids=self._check_unique_ids(in_df=checking_unique_in_df)
+        for i, r in unique_ids.iterrows():
+            prop_id, cluster_id, url=r['property_ids'], r['cluster_ids'], r['property_urls']
             additional_ids={'property_id':prop_id,
                               'cluster_id':cluster_id}
             single=self._create_record(url, **additional_ids)
-            records=pd.concat([records, single], axis=0, sort=False)
+            records=pd.concat([records, single], axis=0)
             if num_listings:               
                 counter+=1
                 if counter==num_listings: break
