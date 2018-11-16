@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import re
 
-def remove_spec_hun_chars(s):
-    SPECIAL_HUN='áéíóőúüű'
-    ASCII = 'aeioouuu'
-    transtab = str.maketrans(SPECIAL_HUN, ASCII)
+def remove_spec_chars(s):
+    SPECIAL='äáéíóőúüű'
+    ASCII = 'aaeioouuu'
+    transtab = str.maketrans(SPECIAL, ASCII)
     spec_chars_free=s.translate(transtab)
     return spec_chars_free
 
@@ -153,7 +153,7 @@ class RealEstateHungaryPageListings:
     
     @city.setter
     def city(self, city):
-        self._city=remove_spec_hun_chars(city.lower())
+        self._city=remove_spec_chars(city.lower())
     
     @property
     def _real_estate_hun_settings(self):
@@ -317,7 +317,7 @@ class RealEstateHungary:
         self.src_page_num=self._real_estate_hun_page_listings.page_num
         self.src_listing_type=self._real_estate_hun_page_listings.listing_type
         self.src_property_type=self._real_estate_hun_page_listings.property_type
-        self.property_url=property_url
+        self.property_url=remove_spec_chars(property_url)
         try:
             self.parsed_html=RequestWithHeaders(self.property_url).parse_to_html()
         except HTTPError as err:
