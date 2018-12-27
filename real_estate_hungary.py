@@ -52,6 +52,7 @@ class RequestWithHeaders:
     def get_http_resp_cont(url, headers):
         http_req=urllib.request.Request(url, headers=headers)
         byte_resp = urllib.request.urlopen(http_req)
+        byte_resp.close()
         content = byte_resp.read()
         return content  
     
