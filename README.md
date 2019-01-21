@@ -1,6 +1,6 @@
 # Scrape real estates listed in Hungary
 # What is it?
-Python script, which scrapes the largest real estate website in Hungary
+Python script, which scrapes the largest real estate website in Hungary. It extracts pieces of public information from website's source code.
 # Features
 
 Two languages:
