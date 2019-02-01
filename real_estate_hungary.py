@@ -294,7 +294,7 @@ class RealEstateHungaryPageListings:
             additional_ids={'property_id':prop_id,
                               'cluster_id':cluster_id}
             single=self._create_record(url, **additional_ids)
-            records=pd.concat([records, single], axis=0)
+            records=pd.concat([records, single], axis=0, sort=False)
             if num_listings:               
                 counter+=1
                 if counter==num_listings: break
