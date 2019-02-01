@@ -6,6 +6,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import re
+import certifi
 
 def remove_spec_chars(s):
     SPECIAL='äáéíóőúüű'
@@ -51,7 +52,7 @@ class RequestWithHeaders:
     @staticmethod
     def get_http_resp_cont(url, headers):
         http_req=urllib.request.Request(url, headers=headers)
-        byte_resp = urllib.request.urlopen(http_req)
+        byte_resp = urllib.request.urlopen(http_req, cafile=certifi.where())
         content = byte_resp.read()
         return content  
     
