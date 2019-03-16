@@ -1,4 +1,6 @@
 import urllib
+import json
+import os
 from urllib.error import HTTPError
 import bs4
 import html5lib
@@ -54,7 +56,12 @@ class RequestWithHeaders:
         http_req=urllib.request.Request(url, headers=headers)
         byte_resp = urllib.request.urlopen(http_req, cafile=certifi.where())
         content = byte_resp.read()
-        return content  
+        return content
+
+    def download(self, file_path):
+        content = self.get_http_resp_cont(self.url, headers=self.headers)
+        with open(file_path, 'wb') as f:
+            f.write(content)
     
     def parse_to_html(self, parser=None):
         content = self.get_http_resp_cont(self.url, headers=self.headers)
@@ -122,28 +129,29 @@ class RealEstateHungaryPageListings:
     page_num :  int
         Page number on the website
     '''
-    def __init__(self, real_estate_hun_settings, city, listing_type, property_type, page_num):
-        self._real_estate_hun_settings=real_estate_hun_settings
-        self.lang=self._real_estate_hun_settings.lang
-        self._url=self._real_estate_hun_settings.url
-        self.listing_type=listing_type
-        self.property_type=property_type
-        self.page_num=page_num
-        self.city=city
-        self.params={'real_estate_hun_settings': self._real_estate_hun_settings,
+    def __init__(self, real_estate_hun_settings, city, listing_type, property_type, page_num, photos_dir=None):
+        self._real_estate_hun_settings = real_estate_hun_settings
+        self.lang = self._real_estate_hun_settings.lang
+        self._url = self._real_estate_hun_settings.url
+        self.listing_type = listing_type
+        self.property_type = property_type
+        self.page_num = page_num
+        self.photos_dir = photos_dir
+        self.city = city
+        self.params = {'real_estate_hun_settings': self._real_estate_hun_settings,
                      'city':self.city,
                      'listing_type':self.listing_type,
                      'property_type':self.property_type,
                      'page_num':self.page_num}
-        url_map=self.params.copy()
+        url_map = self.params.copy()
         url_map['url'] = url_map.pop('real_estate_hun_settings').url
-        if self.lang=='eng':
-            self._LISTINGS_PER_PAGE=12
-            url_map['listings_per_page']=self._LISTINGS_PER_PAGE
-            self.page_url='{url}search?location={city}&type={property_type}&sell_type={listing_type}&price[min]=&price[max]=&page={page_num}&per-page={listings_per_page}'.format(**url_map)
-        elif self.lang=='hun':
-            self.page_url='{url}lista/{listing_type}+{property_type}+{city}?page={page_num}'.format(**url_map)
-        self.parsed_html=RequestWithHeaders(url=self.page_url).parse_to_html()
+        if self.lang == 'eng':
+            self._LISTINGS_PER_PAGE = 12
+            url_map['listings_per_page'] = self._LISTINGS_PER_PAGE
+            self.page_url = '{url}search?location={city}&type={property_type}&sell_type={listing_type}&price[min]=&price[max]=&page={page_num}&per-page={listings_per_page}'.format(**url_map)
+        elif self.lang == 'hun':
+            self.page_url = '{url}lista/{listing_type}+{property_type}+{city}?page={page_num}'.format(**url_map)
+        self.parsed_html = RequestWithHeaders(url=self.page_url).parse_to_html()
 
     def __repr__(self):
         return self.page_url
@@ -261,17 +269,18 @@ class RealEstateHungaryPageListings:
         return d
     
     def _create_record(self, url, timestamp=True, **kwargs):
-        page_attrs=self.extract_attrs()
-        real_estate_params={'real_estate_hun_page_listings':self}
-        real_estate_params['property_url']=url
-        single_property=RealEstateHungary(**real_estate_params)
-        attrs=single_property.extract_attrs()
+        page_attrs = self.extract_attrs()
+        real_estate_params = {'real_estate_hun_page_listings':self}
+        real_estate_params['property_url'] = url
+        single_property = RealEstateHungary(**real_estate_params)
+        if self.photos_dir is not None:
+            single_property.extract_photos(self.photos_dir)
+        attrs = single_property.extract_attrs()
         attrs.update({**page_attrs, **kwargs})
         if timestamp:
             self.add_timestamp_to_dict(attrs)
-        record=pd.DataFrame(attrs, index=[0])
+        record = pd.DataFrame(attrs, index=[0])
         return record.dropna(axis=1)
-    
     
     def _check_unique_ids(self, in_df, in_df_col_name='property_url'):
         ids=pd.DataFrame(self.get_page_listings())
@@ -282,22 +291,22 @@ class RealEstateHungaryPageListings:
             return ids
     
     def listings_to_df(self, num_listings=None, checking_unique_in_df=pd.DataFrame()):
-        urls=self.get_property_urls()
-        max_listing=len(urls)
-        if num_listings and num_listings>max_listing:
+        urls = self.get_property_urls()
+        max_listing = len(urls)
+        if num_listings and num_listings > max_listing:
             raise ValueError('Given number of listings exceeded the maximum number of listings on the page, please specify equal or less than {0}.'.format(max_listing))
-        counter=0
-        records=pd.DataFrame()
-        unique_ids=self._check_unique_ids(in_df=checking_unique_in_df)
+        counter = 0
+        records = pd.DataFrame()
+        unique_ids = self._check_unique_ids(in_df=checking_unique_in_df)
         for i, r in unique_ids.iterrows():
             prop_id, cluster_id, url=r['property_ids'], r['cluster_ids'], r['property_urls']
-            additional_ids={'property_id':prop_id,
+            additional_ids = {'property_id':prop_id,
                               'cluster_id':cluster_id}
-            single=self._create_record(url, **additional_ids)
-            records=pd.concat([records, single], axis=0, sort=False)
+            single = self._create_record(url, **additional_ids)
+            records = pd.concat([records, single], axis=0, sort=False)
             if num_listings:               
-                counter+=1
-                if counter==num_listings: break
+                counter += 1
+                if counter == num_listings: break
         return records.reset_index(drop=True)
     
 class RealEstateHungary:
@@ -482,15 +491,46 @@ class RealEstateHungary:
             sections=[' '.join(sect.split()) for sect in [p.get_text() for p in desc_html_tag.find_all(name='p')]]
             desc=' '.join(sections)
         return desc
+        
+    @property
+    def _photos(self):
+        if self._lang == 'hun':
+            card_listing = self.parsed_html.find('div', class_='card listing')
+            script = card_listing.script.get_text().strip()
+            photos = json.loads(script.split('=')[1].split(';')[0].strip())
+            return photos
+        elif self._lang == 'eng':
+            images = self.parsed_html.find('div', class_ = 'row ApartmentImage__list')
+            photos = [image.get('href') for image in images.find_all('a')]
+            return photos
     
+    @property
+    def num_photos(self):
+        return len(self._photos)
+        
+    def extract_photos(self, save_dir):
+        for photo in self._photos:
+            if self._lang == 'hun':
+                fp = os.path.split(photo['large_url'])[1]
+                fn, ext = os.path.splitext(fp)
+                save_path = os.path.join(save_dir, '{0}_{1}{2}'.format(fn, photo['label'], ext))
+                r = RequestWithHeaders(photo['large_url'])
+            elif self._lang == 'eng':
+                fn = os.path.split(photo)[1]
+                ext = '.jpg'
+                save_path = os.path.join(save_dir, '{0}{2}'.format(fn, ext))
+                r = RequestWithHeaders(photo)
+            r.download(save_path)
+            
     def _extract_single_attrs_to_dict(self):
         single_attrs={'property_url': self.property_url,
-                     'city_district':self.city_district,
-                     'address':self.address,
-                     'lot_size':self.lot_size,
-                     'area_size':self.area_size,
-                     'room':self.room,
-                     'desc':self.desc}
+        'city_district': self.city_district,
+        'address': self.address,
+        'lot_size': self.lot_size,
+        'area_size': self.area_size,
+        'room': self.room,
+        'photos': self.num_photos,
+        'desc': self.desc}
         return single_attrs
     
     def _extract_multiple_attrs_to_dict(self):
