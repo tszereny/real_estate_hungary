@@ -491,7 +491,16 @@ class RealEstateHungary:
             sections=[' '.join(sect.split()) for sect in [p.get_text() for p in desc_html_tag.find_all(name='p')]]
             desc=' '.join(sections)
         return desc
-        
+    
+    @property
+    def all_attributes(self):
+        all_attributes = None
+        if self._lang=='hun':
+            head= self.parsed_html.find('head')
+            script = head.find_all('script')[2].get_text().strip()
+            all_attributes = json.loads(script.split('(')[1].split(')')[0])
+        return all_attributes
+    
     @property
     def _photos(self):
         if self._lang == 'hun':
