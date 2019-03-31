@@ -518,6 +518,8 @@ class RealEstateHungary:
         return len(self._photos)
         
     def extract_photos(self, save_dir):
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
         for photo in self._photos:
             if self._lang == 'hun':
                 fp = os.path.split(photo['large_url'])[1]
